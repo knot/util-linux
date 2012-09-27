@@ -40,6 +40,7 @@ int fdisk_debug_mask;
  */
 static const struct fdisk_label *labels[] =
 {
+	&gpt_label,
 	&dos_label,
 	&sun_label,
 	&sgi_label,
