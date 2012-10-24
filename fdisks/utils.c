@@ -493,7 +493,7 @@ struct fdisk_context *fdisk_new_context_from_filename(const char *fname, int rea
 	 * to the context */
 	__probe_labels(cxt);
 
-	update_sector_offset(cxt);
+	set_dos_compatibility_flag(cxt, 0);
 
 	DBG(CONTEXT, dbgprint("context %p initialized for %s [%s]",
 			      cxt, fname,

@@ -144,6 +144,8 @@ struct fdisk_context {
 
 	unsigned long grain;		/* alignment unit */
 
+	int dos_compatible_flag;
+
 	/* geometry */
 	sector_t total_sectors; /* in logical sectors */
 	struct fdisk_geometry geom;
@@ -260,6 +262,9 @@ extern unsigned int read_int_with_suffix(struct fdisk_context *cxt,
 extern sector_t align_lba(struct fdisk_context *cxt, sector_t lba, int direction);
 extern int get_partition_dflt(struct fdisk_context *cxt, int warn, int max, int dflt);
 extern void update_sector_offset(struct fdisk_context *cxt);
+
+extern void set_dos_compatibility_flag(struct fdisk_context *cxt, int val);
+extern void toggle_dos_compatibility_flag(struct fdisk_context *cxt);
 
 #define PLURAL	0
 #define SINGULAR 1

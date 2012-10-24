@@ -447,10 +447,10 @@ static void set_partition(struct fdisk_context *cxt,
 	if (!doext)
 		print_partition_size(cxt, i + 1, start, stop, sysid);
 
-	if (dos_compatible_flag && (start/(cxt->geom.sectors*cxt->geom.heads) > 1023))
+	if (cxt->dos_compatible_flag && (start/(cxt->geom.sectors*cxt->geom.heads) > 1023))
 		start = cxt->geom.heads*cxt->geom.sectors*1024 - 1;
 	set_hsc(p->head, p->sector, p->cyl, start);
-	if (dos_compatible_flag && (stop/(cxt->geom.sectors*cxt->geom.heads) > 1023))
+	if (cxt->dos_compatible_flag && (stop/(cxt->geom.sectors*cxt->geom.heads) > 1023))
 		stop = cxt->geom.heads*cxt->geom.sectors*1024 - 1;
 	set_hsc(p->end_head, p->end_sector, p->end_cyl, stop);
 	ptes[i].changed = 1;

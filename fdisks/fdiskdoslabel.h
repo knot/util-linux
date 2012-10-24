@@ -18,7 +18,6 @@ struct pte {
 };
 
 extern struct pte ptes[MAXIMUM_PARTS];
-extern int dos_compatible_flag;
 
 #define pt_offset(b, n)	((struct partition *)((b) + 0x1be + \
 					      (n) * sizeof(struct partition)))

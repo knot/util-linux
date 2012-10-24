@@ -127,7 +127,6 @@ char	*line_ptr,			/* interactive input */
 	line_buffer[LINE_LENGTH];
 
 int	nowarn = 0,			/* no warnings for fdisk -l/-s */
-	dos_compatible_flag = 0,	/* disabled by default */
 	partitions = 4;			/* maximum partition + 1 */
 
 unsigned int	user_cylinders, user_heads, user_sectors;
@@ -424,7 +423,7 @@ void warn_alignment(struct fdisk_context *cxt)
 "the physical sector size. Aligning to a physical sector (or optimal\n"
 "I/O) size boundary is recommended, or performance may be impacted.\n"));
 
-	if (dos_compatible_flag)
+	if (cxt->dos_compatible_flag)
 		fprintf(stderr, _("\n"
 "WARNING: DOS-compatible mode is deprecated. It's strongly recommended to\n"
 "         switch off the mode (with command 'c')."));
@@ -444,7 +443,7 @@ update_sector_offset(struct fdisk_context *cxt)
 {
 	cxt->grain = cxt->io_size;
 
-	if (dos_compatible_flag)
+	if (cxt->dos_compatible_flag)
 		sector_offset = cxt->geom.sectors;	/* usually 63 sectors */
 	else {
 		/*
@@ -824,15 +823,17 @@ toggle_active(int i) {
 	pe->changed = 1;
 }
 
-static void
-toggle_dos_compatibility_flag(struct fdisk_context *cxt) {
-	dos_compatible_flag = ~dos_compatible_flag;
-	if (dos_compatible_flag)
-		printf(_("DOS Compatibility flag is set (DEPRECATED!)\n"));
-	else
-		printf(_("DOS Compatibility flag is not set\n"));
-
+void
+set_dos_compatibility_flag(struct fdisk_context *cxt, int val)
+{
+	cxt->dos_compatible_flag = val;
 	update_sector_offset(cxt);
+}
+
+void
+toggle_dos_compatibility_flag(struct fdisk_context *cxt)
+{
+	set_dos_compatibility_flag(cxt, ~cxt->dos_compatible_flag);
 }
 
 static void delete_partition(struct fdisk_context *cxt, int partnum)
@@ -905,7 +906,7 @@ void check_consistency(struct fdisk_context *cxt, struct partition *p, int parti
 	unsigned int lbc, lbh, lbs;	/* logical beginning c, h, s */
 	unsigned int lec, leh, les;	/* logical ending c, h, s */
 
-	if (!dos_compatible_flag)
+	if (!cxt->dos_compatible_flag)
 		return;
 
 	if (!cxt->geom.heads || !cxt->geom.sectors || (partition >= 4))
@@ -971,7 +972,7 @@ list_disk_geometry(struct fdisk_context *cxt) {
 		       cxt->dev_path, hectomega / 10, hectomega % 10, bytes);
 	}
 	printf(_(", %llu sectors\n"), cxt->total_sectors);
-	if (dos_compatible_flag)
+	if (cxt->dos_compatible_flag)
 		printf(_("%d heads, %llu sectors/track, %llu cylinders\n"),
 		       cxt->geom.heads, cxt->geom.sectors, cxt->geom.cylinders);
 	printf(_("Units = %s of %d * %ld = %ld bytes\n"),
@@ -1523,7 +1524,7 @@ expert_command_prompt(struct fdisk_context *cxt)
 		case 's':
 			user_sectors = cxt->geom.sectors = read_int(cxt, 1, cxt->geom.sectors, 63, 0,
 					   _("Number of sectors"));
-			if (dos_compatible_flag)
+			if (cxt->dos_compatible_flag)
 				fprintf(stderr, _("Warning: setting "
 					"sector offset for DOS "
 					"compatibility\n"));
@@ -1559,13 +1560,15 @@ static int is_ide_cdrom_or_tape(char *device)
 }
 
 /* Print disk geometry and partition table of a specified device (-l option) */
-static void print_partition_table_from_option(char *device, unsigned long sector_size)
+static void print_partition_table_from_option(char *device, unsigned long sector_size, int dos_mode)
 {
 	struct fdisk_context *cxt;
 
 	cxt = fdisk_new_context_from_filename(device, 1);	/* read-only */
 	if (!cxt)
 		err(EXIT_FAILURE, _("cannot open %s"), device);
+
+	set_dos_compatibility_flag(cxt, dos_mode);
 
 	if (sector_size) /* passed -b option, override autodiscovery */
 		fdisk_context_force_sector_size(cxt, sector_size);
@@ -1594,7 +1597,7 @@ static void print_partition_table_from_option(char *device, unsigned long sector
  * try all things in /proc/partitions that look like a full disk
  */
 static void
-print_all_partition_table_from_option(unsigned long sector_size)
+print_all_partition_table_from_option(unsigned long sector_size, int dos_mode)
 {
 	FILE *procpt;
 	char line[128 + 1], ptname[128 + 1], devname[256];
@@ -1616,7 +1619,7 @@ print_all_partition_table_from_option(unsigned long sector_size)
 			char *cn = canonicalize_path(devname);
 			if (cn) {
 				if (!is_ide_cdrom_or_tape(cn))
-					print_partition_table_from_option(cn, sector_size);
+					print_partition_table_from_option(cn, sector_size, dos_mode);
 				free(cn);
 			}
 		}
@@ -1680,8 +1683,13 @@ static void command_prompt(struct fdisk_context *cxt)
 				unknown_command(c);
 			break;
 		case 'c':
-			if (disklabel == DOS_LABEL)
+			if (disklabel == DOS_LABEL) {
 				toggle_dos_compatibility_flag(cxt);
+				if (cxt->dos_compatible_flag)
+					printf(_("DOS Compatibility flag is set (DEPRECATED!)\n"));
+				else
+					printf(_("DOS Compatibility flag is not set\n"));
+			}
 			else if (disklabel == SUN_LABEL)
 				toggle_sunflags(cxt, get_partition(cxt, 1, partitions),
 						SUN_FLAG_RONLY);
@@ -1762,6 +1770,7 @@ int main(int argc, char **argv)
 	int c, optl = 0, opts = 0;
 	unsigned long sector_size = 0;
 	struct fdisk_context *cxt = NULL;
+	int dos_compatible_flag = 0;
 
 	setlocale(LC_ALL, "");
 	bindtextdomain(PACKAGE, LOCALEDIR);
@@ -1837,9 +1846,10 @@ int main(int argc, char **argv)
 		if (argc > optind) {
 			int k;
 			for (k = optind; k < argc; k++)
-				print_partition_table_from_option(argv[k], sector_size);
+				print_partition_table_from_option(argv[k], sector_size,
+								  dos_compatible_flag);
 		} else
-			print_all_partition_table_from_option(sector_size);
+			print_all_partition_table_from_option(sector_size, dos_compatible_flag);
 		exit(EXIT_SUCCESS);
 	}
 
@@ -1864,6 +1874,8 @@ int main(int argc, char **argv)
 	cxt = fdisk_new_context_from_filename(argv[optind], 0);
 	if (!cxt)
 		err(EXIT_FAILURE, _("cannot open %s"), argv[optind]);
+
+	set_dos_compatibility_flag(cxt, dos_compatible_flag);
 
 	if (sector_size)	/* passed -b option, override autodiscovery */
 		fdisk_context_force_sector_size(cxt, sector_size);
