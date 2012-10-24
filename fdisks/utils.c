@@ -451,7 +451,7 @@ void fdisk_init_debug(int mask)
 }
 
 /**
- * fdisk_new_context:
+ * fdisk_new_context_from_filename:
  * @fname: path to the device to be handled
  * @readonly: how to open the device
  *
@@ -489,7 +489,7 @@ struct fdisk_context *fdisk_new_context_from_filename(const char *fname, int rea
 	__discover_topology(cxt);
 	__discover_system_geometry(cxt);
 
-	/* detect labels and apply labes specific stuff (e.g geomery)
+	/* detect labels and apply label specific stuff (e.g geometry)
 	 * to the context */
 	__probe_labels(cxt);
 

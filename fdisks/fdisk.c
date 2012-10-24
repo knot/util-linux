@@ -1773,7 +1773,7 @@ int main(int argc, char **argv)
 		case 'b':
 			/* Ugly: this sector size is really per device,
 			   so cannot be combined with multiple disks,
-			   and te same goes for the C/H/S options.
+			   and the same goes for the C/H/S options.
 			*/
 			sector_size = strtou32_or_err(optarg, _("invalid sector size argument"));
 			if (sector_size != 512 && sector_size != 1024 &&
