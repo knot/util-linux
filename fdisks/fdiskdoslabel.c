@@ -462,8 +462,8 @@ static sector_t get_unused_start(struct fdisk_context *cxt,
 		sector_t lastplusoff;
 
 		if (start == cxt->ptes[i].offset)
-			start += sector_offset;
-		lastplusoff = last[i] + ((part_n < 4) ? 0 : sector_offset);
+			start += cxt->sector_offset;
+		lastplusoff = last[i] + ((part_n < 4) ? 0 : cxt->sector_offset);
 		if (start >= first[i] && start <= lastplusoff)
 			start = lastplusoff + 1;
 	}
@@ -504,7 +504,7 @@ static void add_partition(struct fdisk_context *cxt, int n, struct fdisk_parttyp
 	}
 	fill_bounds(cxt, first, last);
 	if (n < 4) {
-		start = sector_offset;
+		start = cxt->sector_offset;
 		if (display_in_cyl_units || !cxt->total_sectors)
 			limit = cxt->geom.heads * cxt->geom.sectors * cxt->geom.cylinders - 1;
 		else
@@ -519,7 +519,7 @@ static void add_partition(struct fdisk_context *cxt, int n, struct fdisk_parttyp
 				get_nr_sects(q) - 1;
 		}
 	} else {
-		start = cxt->extended_offset + sector_offset;
+		start = cxt->extended_offset + cxt->sector_offset;
 		limit = get_start_sect(q) + get_nr_sects(q) - 1;
 	}
 	if (display_in_cyl_units)
@@ -563,10 +563,10 @@ static void add_partition(struct fdisk_context *cxt, int n, struct fdisk_parttyp
 	if (n > 4) {			/* NOT for fifth partition */
 		struct pte *pe = &cxt->ptes[n];
 
-		pe->offset = start - sector_offset;
+		pe->offset = start - cxt->sector_offset;
 		if (pe->offset == cxt->extended_offset) { /* must be corrected */
 			pe->offset++;
-			if (sector_offset == 1)
+			if (cxt->sector_offset == 1)
 				start++;
 		}
 	}

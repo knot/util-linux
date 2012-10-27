@@ -130,7 +130,6 @@ int	nowarn = 0,			/* no warnings for fdisk -l/-s */
 	partitions = 4;			/* maximum partition + 1 */
 
 unsigned int	user_cylinders, user_heads, user_sectors;
-sector_t sector_offset = 1;
 unsigned int units_per_sector = 1, display_in_cyl_units = 0;
 enum fdisk_labeltype disklabel;	/* Current disklabel */
 
@@ -320,8 +319,8 @@ sector_t align_lba(struct fdisk_context *cxt, sector_t lba, int direction)
 	else {
 		sector_t sects_in_phy = cxt->grain / cxt->sector_size;
 
-		if (lba < sector_offset)
-			res = sector_offset;
+		if (lba < cxt->sector_offset)
+			res = cxt->sector_offset;
 
 		else if (direction == ALIGN_UP)
 			res = ((lba + sects_in_phy) / sects_in_phy) * sects_in_phy;
@@ -444,7 +443,7 @@ update_sector_offset(struct fdisk_context *cxt)
 	cxt->grain = cxt->io_size;
 
 	if (cxt->dos_compatible_flag)
-		sector_offset = cxt->geom.sectors;	/* usually 63 sectors */
+		cxt->sector_offset = cxt->geom.sectors;	/* usually 63 sectors */
 	else {
 		/*
 		 * Align the begin of partitions to:
@@ -469,11 +468,11 @@ update_sector_offset(struct fdisk_context *cxt)
 		if (!x)
 			x = 2048 * 512;
 
-		sector_offset = x / cxt->sector_size;
+		cxt->sector_offset = x / cxt->sector_size;
 
 		/* don't use huge offset on small devices */
-		if (cxt->total_sectors <= sector_offset * 4)
-			sector_offset = cxt->phy_sector_size / cxt->sector_size;
+		if (cxt->total_sectors <= cxt->sector_offset * 4)
+			cxt->sector_offset = cxt->phy_sector_size / cxt->sector_size;
 
 		/* use 1MiB grain always when possible */
 		if (cxt->grain < 2048 * 512)
@@ -1788,7 +1787,7 @@ int main(int argc, char **argv)
 			if (sector_size != 512 && sector_size != 1024 &&
 			    sector_size != 2048 && sector_size != 4096)
 				usage(stderr);
-			sector_offset = 2;
+			cxt->sector_offset = 2;
 			break;
 		case 'C':
 			user_cylinders =  strtou32_or_err(optarg, _("invalid cylinders argument"));

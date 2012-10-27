@@ -171,6 +171,7 @@ struct fdisk_context {
 	struct pte ptes[MAXIMUM_PARTS];
 	sector_t extended_offset;
 	int ext_index;			/* the prime extended partition */
+	sector_t sector_offset;
 
 	/* label operations and description */
 	const struct fdisk_label *label;

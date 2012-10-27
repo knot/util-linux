@@ -6,8 +6,6 @@ extern struct pte ptes[MAXIMUM_PARTS];
 #define pt_offset(b, n)	((struct partition *)((b) + 0x1be + \
 					      (n) * sizeof(struct partition)))
 
-extern sector_t sector_offset;
-
 /* A valid partition table sector ends in 0x55 0xaa */
 static inline unsigned int part_table_flag(unsigned char *b)
 {
