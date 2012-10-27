@@ -328,7 +328,7 @@ void dos_set_mbr_id(struct fdisk_context *cxt)
 		return;
 
 	mbr_set_id(cxt->firstsector, new_id);
-	MBRbuffer_changed = 1;
+	cxt->MBRbuffer_changed = 1;
 	dos_print_mbr_id(cxt);
 }
 
@@ -798,12 +798,12 @@ static int dos_write_disklabel(struct fdisk_context *cxt)
 	int i, rc = 0;
 
 	/* MBR (primary partitions) */
-	if (!MBRbuffer_changed) {
+	if (!cxt->MBRbuffer_changed) {
 		for (i = 0; i < 4; i++)
 			if (cxt->ptes[i].changed)
-				MBRbuffer_changed = 1;
+				cxt->MBRbuffer_changed = 1;
 	}
-	if (MBRbuffer_changed) {
+	if (cxt->MBRbuffer_changed) {
 		mbr_set_magic(cxt->firstsector);
 		rc = write_sector(cxt, 0, cxt->firstsector);
 		if (rc)

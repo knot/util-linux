@@ -172,6 +172,7 @@ struct fdisk_context {
 	sector_t extended_offset;
 	int ext_index;			/* the prime extended partition */
 	sector_t sector_offset;
+	int MBRbuffer_changed;
 
 	/* label operations and description */
 	const struct fdisk_label *label;

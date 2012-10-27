@@ -51,8 +51,6 @@
 
 #include "gpt.h"
 
-int MBRbuffer_changed;
-
 #define hex_val(c)	({ \
 				char _c = (c); \
 				isdigit(_c) ? _c - '0' : \
@@ -502,7 +500,7 @@ static void maybe_exit(struct fdisk_context *cxt, int rc, int *asked)
 	if (asked)
 		*asked = 0;
 
-	if (is_partition_table_changed(cxt) || MBRbuffer_changed) {
+	if (is_partition_table_changed(cxt) || cxt->MBRbuffer_changed) {
 		fprintf(stderr, _("Do you really want to quit? "));
 
 		if (!fgets(line, LINE_LENGTH, stdin) || rpmatch(line) == 1)
