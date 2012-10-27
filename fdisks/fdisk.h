@@ -110,6 +110,23 @@ struct fdisk_parttype {
 	unsigned int	flags;		/* FDISK_PARTTYPE_* flags */
 };
 
+/*
+ * per partition table entry data
+ *
+ * The four primary partitions have the same sectorbuffer (MBRbuffer)
+ * and have NULL ext_pointer.
+ * Each logical partition table entry has two pointers, one for the
+ * partition and one link to the next one.
+ */
+struct pte {
+	struct partition *part_table;	/* points into sectorbuffer */
+	struct partition *ext_pointer;	/* points into sectorbuffer */
+	char changed;			/* boolean */
+	sector_t offset;	        /* disk sector number */
+	unsigned char *sectorbuffer;	/* disk sector contents */
+};
+
+
 enum {
 	FDISK_PARTTYPE_UNKNOWN		= (1 << 1),
 	FDISK_PARTTYPE_INVISIBLE	= (1 << 2),
@@ -149,6 +166,9 @@ struct fdisk_context {
 	/* geometry */
 	sector_t total_sectors; /* in logical sectors */
 	struct fdisk_geometry geom;
+
+	/* partition table entries */
+	struct pte ptes[MAXIMUM_PARTS];
 
 	/* label operations and description */
 	const struct fdisk_label *label;
@@ -235,24 +255,24 @@ extern void change_units(struct fdisk_context *cxt);
 extern void fatal(struct fdisk_context *cxt, enum failure why);
 extern int  get_partition(struct fdisk_context *cxt, int warn, int max);
 extern void list_partition_types(struct fdisk_context *cxt);
-extern int read_line (int *asked);
-extern char read_char(char *mesg);
+extern int read_line (struct fdisk_context *cxt, int *asked);
+extern char read_char(struct fdisk_context *cxt, char *mesg);
 extern struct fdisk_parttype *read_partition_type(struct fdisk_context *cxt);
 extern void reread_partition_table(struct fdisk_context *cxt, int leave);
-extern struct partition *get_part_table(int);
+extern struct partition *get_part_table(struct fdisk_context *cxt, int);
 extern unsigned int read_int(struct fdisk_context *cxt,
 			     unsigned int low, unsigned int dflt,
 			     unsigned int high, unsigned int base, char *mesg);
 extern void print_menu(enum menutype);
 extern void print_partition_size(struct fdisk_context *cxt, int num, sector_t start, sector_t stop, int sysid);
 
-extern void fill_bounds(sector_t *first, sector_t *last);
+extern void fill_bounds(struct fdisk_context *cxt, sector_t *first, sector_t *last);
 
 extern char *partition_type(struct fdisk_context *cxt, unsigned char type);
 extern void update_units(struct fdisk_context *cxt);
-extern char read_chars(char *mesg);
-extern void set_changed(int);
-extern void set_all_unchanged(void);
+extern char read_chars(struct fdisk_context *cxt, char *mesg);
+extern void set_changed(struct fdisk_context *cxt, int);
+extern void set_all_unchanged(struct fdisk_context *cxt);
 extern int warn_geometry(struct fdisk_context *cxt);
 extern void warn_limits(struct fdisk_context *cxt);
 extern void warn_alignment(struct fdisk_context *cxt);

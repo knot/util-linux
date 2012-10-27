@@ -1,22 +1,6 @@
 #ifndef FDISK_DOS_LABEL_H
 #define FDISK_DOS_LABEL_H
 
-/*
- * per partition table entry data
- *
- * The four primary partitions have the same sectorbuffer (MBRbuffer)
- * and have NULL ext_pointer.
- * Each logical partition table entry has two pointers, one for the
- * partition and one link to the next one.
- */
-struct pte {
-	struct partition *part_table;	/* points into sectorbuffer */
-	struct partition *ext_pointer;	/* points into sectorbuffer */
-	char changed;			/* boolean */
-	sector_t offset;	        /* disk sector number */
-	unsigned char *sectorbuffer;	/* disk sector contents */
-};
-
 extern struct pte ptes[MAXIMUM_PARTS];
 
 #define pt_offset(b, n)	((struct partition *)((b) + 0x1be + \

@@ -176,29 +176,29 @@ fatal(struct fdisk_context *cxt, enum failure why)
 }
 
 struct partition *
-get_part_table(int i) {
-	return ptes[i].part_table;
+get_part_table(struct fdisk_context *cxt, int i) {
+	return cxt->ptes[i].part_table;
 }
 
 void
-set_all_unchanged(void) {
+set_all_unchanged(struct fdisk_context *cxt) {
 	int i;
 
 	for (i = 0; i < MAXIMUM_PARTS; i++)
-		ptes[i].changed = 0;
+		cxt->ptes[i].changed = 0;
 }
 
 void
-set_changed(int i) {
-	ptes[i].changed = 1;
+set_changed(struct fdisk_context *cxt, int i) {
+	cxt->ptes[i].changed = 1;
 }
 
 static int
-is_garbage_table(void) {
+is_garbage_table(struct fdisk_context *cxt) {
 	int i;
 
 	for (i = 0; i < 4; i++) {
-		struct pte *pe = &ptes[i];
+		struct pte *pe = &cxt->ptes[i];
 		struct partition *p = pe->part_table;
 
 		if (p->boot_ind != 0 && p->boot_ind != 0x80)
@@ -485,17 +485,17 @@ update_sector_offset(struct fdisk_context *cxt)
 	}
 }
 
-static int is_partition_table_changed(void)
+static int is_partition_table_changed(struct fdisk_context *cxt)
 {
 	int i;
 
 	for (i = 0; i < partitions; i++)
-		if (ptes[i].changed)
+		if (cxt->ptes[i].changed)
 			return 1;
 	return 0;
 }
 
-static void maybe_exit(int rc, int *asked)
+static void maybe_exit(struct fdisk_context *cxt, int rc, int *asked)
 {
 	char line[LINE_LENGTH];
 
@@ -503,7 +503,7 @@ static void maybe_exit(int rc, int *asked)
 	if (asked)
 		*asked = 0;
 
-	if (is_partition_table_changed() || MBRbuffer_changed) {
+	if (is_partition_table_changed(cxt) || MBRbuffer_changed) {
 		fprintf(stderr, _("Do you really want to quit? "));
 
 		if (!fgets(line, LINE_LENGTH, stdin) || rpmatch(line) == 1)
@@ -516,11 +516,11 @@ static void maybe_exit(int rc, int *asked)
 
 /* read line; return 0 or first char */
 int
-read_line(int *asked)
+read_line(struct fdisk_context *cxt, int *asked)
 {
 	line_ptr = line_buffer;
 	if (!fgets(line_buffer, LINE_LENGTH, stdin)) {
-		maybe_exit(1, asked);
+		maybe_exit(cxt, 1, asked);
 		return 0;
 	}
 	if (asked)
@@ -531,24 +531,24 @@ read_line(int *asked)
 }
 
 char
-read_char(char *mesg)
+read_char(struct fdisk_context *cxt, char *mesg)
 {
 	do {
 		fputs(mesg, stdout);
 		fflush (stdout);	 /* requested by niles@scyld.com */
-	} while (!read_line(NULL));
+	} while (!read_line(cxt, NULL));
 	return *line_ptr;
 }
 
 char
-read_chars(char *mesg)
+read_chars(struct fdisk_context *cxt, char *mesg)
 {
 	int rc, asked = 0;
 
 	do {
 	        fputs(mesg, stdout);
 		fflush (stdout);	/* niles@scyld.com */
-		rc = read_line(&asked);
+		rc = read_line(cxt, &asked);
 	} while (asked);
 
 	if (!rc) {
@@ -567,9 +567,9 @@ struct fdisk_parttype *read_partition_type(struct fdisk_context *cxt)
 		size_t sz;
 
 		if (cxt->label->parttypes[0].typestr)
-			read_chars(_("Partition type (type L to list all types): "));
+			read_chars(cxt, _("Partition type (type L to list all types): "));
 		else
-			read_chars(_("Hex code (type L to list all codes): "));
+			read_chars(cxt, _("Hex code (type L to list all codes): "));
 
 		sz = strlen(line_ptr);
 		if (!sz || line_ptr[sz - 1] != '\n' || sz == 1)
@@ -616,7 +616,7 @@ read_int_with_suffix(struct fdisk_context *cxt,
 		int use_default = default_ok;
 
 		/* ask question and read answer */
-		while (read_chars(ms) != '\n' && !isdigit(*line_ptr)
+		while (read_chars(cxt, ms) != '\n' && !isdigit(*line_ptr)
 		       && *line_ptr != '-' && *line_ptr != '+')
 			continue;
 
@@ -737,7 +737,7 @@ get_partition_dflt(struct fdisk_context *cxt, int warn, int max, int dflt) {
 	int i;
 
 	i = read_int(cxt, 1, dflt, max, 0, _("Partition number")) - 1;
-	pe = &ptes[i];
+	pe = &cxt->ptes[i];
 
 	if (warn && disklabel != GPT_LABEL) {
 		if ((disklabel != SUN_LABEL && disklabel != SGI_LABEL && !pe->part_table->sys_ind)
@@ -769,7 +769,7 @@ get_existing_partition(struct fdisk_context *cxt, int warn, int max) {
 		goto not_implemented;
 
 	for (i = 0; i < max; i++) {
-		struct pte *pe = &ptes[i];
+		struct pte *pe = &cxt->ptes[i];
 		struct partition *p = pe->part_table;
 
 		if (p && !is_cleared_partition(p)) {
@@ -811,8 +811,8 @@ void change_units(struct fdisk_context *cxt)
 }
 
 static void
-toggle_active(int i) {
-	struct pte *pe = &ptes[i];
+toggle_active(struct fdisk_context *cxt, int i) {
+	struct pte *pe = &cxt->ptes[i];
 	struct partition *p = pe->part_table;
 
 	if (IS_EXTENDED (p->sys_ind) && !p->boot_ind)
@@ -841,7 +841,7 @@ static void delete_partition(struct fdisk_context *cxt, int partnum)
 	if (partnum < 0 || warn_geometry(cxt))
 		return;
 
-	ptes[partnum].changed = 1;
+	cxt->ptes[partnum].changed = 1;
 	if (fdisk_delete_partition(cxt, partnum) != 0)
 		printf(_("Could not delete partition %d\n"), partnum + 1);
 	else
@@ -867,7 +867,7 @@ static void change_partition_type(struct fdisk_context *cxt)
 			continue;
 
 		if (fdisk_set_partition_type(cxt, i, t) == 0) {
-			ptes[i].changed = 1;
+			cxt->ptes[i].changed = 1;
 			printf (_("Changed type of partition '%s' to '%s'\n"),
 				org_t ? org_t->name : _("Unknown"),
 				    t ?     t->name : _("Unknown"));
@@ -996,7 +996,7 @@ list_disk_geometry(struct fdisk_context *cxt) {
  * Two separate checks: primary and logical partitions.
  */
 static int
-wrong_p_order(int *prev) {
+wrong_p_order(struct fdisk_context *cxt, int *prev) {
 	struct pte *pe;
 	struct partition *p;
 	unsigned int last_p_start_pos = 0, p_start_pos;
@@ -1007,7 +1007,7 @@ wrong_p_order(int *prev) {
 			last_i = 4;
 			last_p_start_pos = 0;
 		}
-		pe = &ptes[i];
+		pe = &cxt->ptes[i];
 		if ((p = pe->part_table)->sys_ind) {
 			p_start_pos = get_partition_start(pe);
 
@@ -1038,7 +1038,7 @@ wrong_p_order(int *prev) {
  * may help.
  */
 static void
-fix_chain_of_logicals(void) {
+fix_chain_of_logicals(struct fdisk_context *cxt) {
 	int j, oj, ojj, sj, sjj;
 	struct partition *pj,*pjj,tmp;
 
@@ -1046,18 +1046,18 @@ fix_chain_of_logicals(void) {
 	/* (Its sector is the global extended_offset.) */
  stage1:
 	for (j = 5; j < partitions-1; j++) {
-		oj = ptes[j].offset;
-		ojj = ptes[j+1].offset;
+		oj = cxt->ptes[j].offset;
+		ojj = cxt->ptes[j+1].offset;
 		if (oj > ojj) {
-			ptes[j].offset = ojj;
-			ptes[j+1].offset = oj;
-			pj = ptes[j].part_table;
+			cxt->ptes[j].offset = ojj;
+			cxt->ptes[j+1].offset = oj;
+			pj = cxt->ptes[j].part_table;
 			set_start_sect(pj, get_start_sect(pj)+oj-ojj);
-			pjj = ptes[j+1].part_table;
+			pjj = cxt->ptes[j+1].part_table;
 			set_start_sect(pjj, get_start_sect(pjj)+ojj-oj);
-			set_start_sect(ptes[j-1].ext_pointer,
+			set_start_sect(cxt->ptes[j-1].ext_pointer,
 				       ojj-extended_offset);
-			set_start_sect(ptes[j].ext_pointer,
+			set_start_sect(cxt->ptes[j].ext_pointer,
 				       oj-extended_offset);
 			goto stage1;
 		}
@@ -1066,12 +1066,12 @@ fix_chain_of_logicals(void) {
 	/* Stage 2: sort starting sectors */
  stage2:
 	for (j = 4; j < partitions-1; j++) {
-		pj = ptes[j].part_table;
-		pjj = ptes[j+1].part_table;
+		pj = cxt->ptes[j].part_table;
+		pjj = cxt->ptes[j+1].part_table;
 		sj = get_start_sect(pj);
 		sjj = get_start_sect(pjj);
-		oj = ptes[j].offset;
-		ojj = ptes[j+1].offset;
+		oj = cxt->ptes[j].offset;
+		ojj = cxt->ptes[j+1].offset;
 		if (oj+sj > ojj+sjj) {
 			tmp = *pj;
 			*pj = *pjj;
@@ -1084,25 +1084,25 @@ fix_chain_of_logicals(void) {
 
 	/* Probably something was changed */
 	for (j = 4; j < partitions; j++)
-		ptes[j].changed = 1;
+		cxt->ptes[j].changed = 1;
 }
 
 static void
-fix_partition_table_order(void) {
+fix_partition_table_order(struct fdisk_context *cxt) {
 	struct pte *pei, *pek;
 	int i,k;
 
-	if (!wrong_p_order(NULL)) {
+	if (!wrong_p_order(cxt, NULL)) {
 		printf(_("Nothing to do. Ordering is correct already.\n\n"));
 		return;
 	}
 
-	while ((i = wrong_p_order(&k)) != 0 && i < 4) {
+	while ((i = wrong_p_order(cxt, &k)) != 0 && i < 4) {
 		/* partition i should have come earlier, move it */
 		/* We have to move data in the MBR */
 		struct partition *pi, *pk, *pe, pbuf;
-		pei = &ptes[i];
-		pek = &ptes[k];
+		pei = &cxt->ptes[i];
+		pek = &cxt->ptes[k];
 
 		pe = pei->ext_pointer;
 		pei->ext_pointer = pek->ext_pointer;
@@ -1119,7 +1119,7 @@ fix_partition_table_order(void) {
 	}
 
 	if (i)
-		fix_chain_of_logicals();
+		fix_chain_of_logicals(cxt);
 
 	printf(_("Done.\n"));
 
@@ -1152,7 +1152,7 @@ static void list_table(struct fdisk_context *cxt, int xtra)
 		return;
 	}
 
-	if (is_garbage_table()) {
+	if (is_garbage_table(cxt)) {
 		printf(_("This doesn't look like a partition table\n"
 			 "Probably you selected the wrong device.\n\n"));
 	}
@@ -1170,7 +1170,7 @@ static void list_table(struct fdisk_context *cxt, int xtra)
 	       w+1, _("Device"));
 
 	for (i = 0; i < partitions; i++) {
-		struct pte *pe = &ptes[i];
+		struct pte *pe = &cxt->ptes[i];
 
 		p = pe->part_table;
 		if (p && !is_cleared_partition(p)) {
@@ -1205,7 +1205,7 @@ static void list_table(struct fdisk_context *cxt, int xtra)
 	/* Is partition table in disk order? It need not be, but... */
 	/* partition table entries are not checked for correct order if this
 	   is a sgi, sun or aix labeled disk... */
-	if (disklabel == DOS_LABEL && wrong_p_order(NULL)) {
+	if (disklabel == DOS_LABEL && wrong_p_order(cxt, NULL)) {
 		printf(_("\nPartition table entries are not in disk order\n"));
 	}
 }
@@ -1220,7 +1220,7 @@ x_list_table(struct fdisk_context *cxt, int extend) {
 		cxt->dev_path, cxt->geom.heads, cxt->geom.sectors, cxt->geom.cylinders);
         printf(_("Nr AF  Hd Sec  Cyl  Hd Sec  Cyl     Start      Size ID\n"));
 	for (i = 0 ; i < partitions; i++) {
-		pe = &ptes[i];
+		pe = &cxt->ptes[i];
 		p = (extend ? pe->ext_pointer : pe->part_table);
 		if (p != NULL) {
                         printf("%2d %02x%4d%4d%5d%4d%4d%5d%11lu%11lu %02x\n",
@@ -1239,10 +1239,10 @@ x_list_table(struct fdisk_context *cxt, int extend) {
 	}
 }
 
-void fill_bounds(sector_t *first, sector_t *last)
+void fill_bounds(struct fdisk_context *cxt, sector_t *first, sector_t *last)
 {
 	int i;
-	struct pte *pe = &ptes[0];
+	struct pte *pe = &cxt->ptes[0];
 	struct partition *p;
 
 	for (i = 0; i < partitions; pe++,i++) {
@@ -1394,12 +1394,12 @@ static void print_raw(struct fdisk_context *cxt)
 	    disklabel == GPT_LABEL)
 		print_buffer(cxt, cxt->firstsector);
 	else for (i = 3; i < partitions; i++)
-		     print_buffer(cxt, ptes[i].sectorbuffer);
+		     print_buffer(cxt, cxt->ptes[i].sectorbuffer);
 }
 
 static void
 move_begin(struct fdisk_context *cxt, int i) {
-	struct pte *pe = &ptes[i];
+	struct pte *pe = &cxt->ptes[i];
 	struct partition *p = pe->part_table;
 	unsigned int new, free_start, curr_start, last;
 	int x;
@@ -1421,7 +1421,7 @@ move_begin(struct fdisk_context *cxt, int i) {
 	/* look for a free space before the current start of the partition */
 	for (x = 0; x < partitions; x++) {
 		unsigned int end;
-		struct pte *prev_pe = &ptes[x];
+		struct pte *prev_pe = &cxt->ptes[x];
 		struct partition *prev_p = prev_pe->part_table;
 
 		if (!prev_p)
@@ -1460,7 +1460,7 @@ expert_command_prompt(struct fdisk_context *cxt)
 
 	while(1) {
 		putchar('\n');
-		c = tolower(read_char(_("Expert command (m for help): ")));
+		c = tolower(read_char(cxt, _("Expert command (m for help): ")));
 		switch (c) {
 		case 'a':
 			if (disklabel == SUN_LABEL)
@@ -1491,7 +1491,7 @@ expert_command_prompt(struct fdisk_context *cxt)
 			break;
 		case 'f':
 			if (disklabel == DOS_LABEL)
-				fix_partition_table_order();
+				fix_partition_table_order(cxt);
 			break;
 		case 'g':
 			fdisk_create_disklabel(cxt, "sgi");
@@ -1658,11 +1658,11 @@ static void command_prompt(struct fdisk_context *cxt)
 
 	while (1) {
 		putchar('\n');
-		c = tolower(read_char(_("Command (m for help): ")));
+		c = tolower(read_char(cxt, _("Command (m for help): ")));
 		switch (c) {
 		case 'a':
 			if (disklabel == DOS_LABEL)
-				toggle_active(get_partition(cxt, 1, partitions));
+				toggle_active(cxt, get_partition(cxt, 1, partitions));
 			else if (disklabel == SUN_LABEL)
 				toggle_sunflags(cxt, get_partition(cxt, 1, partitions),
 						SUN_FLAG_UNMNT);
