@@ -170,6 +170,7 @@ struct fdisk_context {
 	/* partition table entries */
 	struct pte ptes[MAXIMUM_PARTS];
 	sector_t extended_offset;
+	int ext_index;			/* the prime extended partition */
 
 	/* label operations and description */
 	const struct fdisk_label *label;

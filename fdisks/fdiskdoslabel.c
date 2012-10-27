@@ -28,8 +28,6 @@ static struct fdisk_parttype dos_parttypes[] = {
 
 #define alignment_required	(cxt->grain != cxt->sector_size)
 
-int ext_index;
-
 static int get_nonexisting_partition(struct fdisk_context *cxt, int warn, int max)
 {
 	int pno = -1;
@@ -115,7 +113,7 @@ void dos_init(struct fdisk_context *cxt)
 
 	disklabel = DOS_LABEL;
 	partitions = 4;
-	ext_index = 0;
+	cxt->ext_index = 0;
 	cxt->extended_offset = 0;
 
 	for (i = 0; i < 4; i++) {
@@ -145,9 +143,9 @@ static int dos_delete_partition(
 	   decrement partitions. */
 
 	if (partnum < 4) {
-		if (IS_EXTENDED (p->sys_ind) && partnum == ext_index) {
+		if (IS_EXTENDED (p->sys_ind) && partnum == cxt->ext_index) {
 			partitions = 4;
-			cxt->ptes[ext_index].ext_pointer = NULL;
+			cxt->ptes[cxt->ext_index].ext_pointer = NULL;
 			cxt -> extended_offset = 0;
 		}
 		clear_partition(p);
@@ -198,7 +196,7 @@ static void read_extended(struct fdisk_context *cxt, int ext)
 	struct pte *pex;
 	struct partition *p, *q;
 
-	ext_index = ext;
+	cxt->ext_index = ext;
 	pex = &cxt->ptes[ext];
 	pex->ext_pointer = pex->part_table;
 
@@ -493,7 +491,7 @@ static void add_partition(struct fdisk_context *cxt, int n, struct fdisk_parttyp
 	char mesg[256];		/* 48 does not suffice in Japanese */
 	int i, sys, read = 0;
 	struct partition *p = cxt->ptes[n].part_table;
-	struct partition *q = cxt->ptes[ext_index].part_table;
+	struct partition *q = cxt->ptes[cxt->ext_index].part_table;
 	sector_t start, stop = 0, limit, temp,
 		first[partitions], last[partitions];
 
@@ -516,8 +514,8 @@ static void add_partition(struct fdisk_context *cxt, int n, struct fdisk_parttyp
 			limit = UINT_MAX;
 
 		if (cxt->extended_offset) {
-			first[ext_index] = cxt->extended_offset;
-			last[ext_index] = get_start_sect(q) +
+			first[cxt->ext_index] = cxt->extended_offset;
+			last[cxt->ext_index] = get_start_sect(q) +
 				get_nr_sects(q) - 1;
 		}
 	} else {
@@ -625,7 +623,7 @@ static void add_partition(struct fdisk_context *cxt, int n, struct fdisk_parttyp
 		struct pte *pe4 = &cxt->ptes[4];
 		struct pte *pen = &cxt->ptes[n];
 
-		ext_index = n;
+		cxt->ext_index = n;
 		pen->ext_pointer = p;
 		pe4->offset = cxt->extended_offset = start;
 		pe4->sectorbuffer = xcalloc(1, cxt->sector_size);
@@ -687,7 +685,7 @@ static int dos_verify_disklabel(struct fdisk_context *cxt)
 	}
 
 	if (cxt->extended_offset) {
-		struct pte *pex = &cxt->ptes[ext_index];
+		struct pte *pex = &cxt->ptes[cxt->ext_index];
 		sector_t e_last = get_start_sect(pex->part_table) +
 			get_nr_sects(pex->part_table) - 1;
 
@@ -702,7 +700,7 @@ static int dos_verify_disklabel(struct fdisk_context *cxt)
 			else if (first[i] < cxt->extended_offset ||
 					last[i] > e_last)
 				printf(_("Logical partition %d not entirely in "
-					"partition %d\n"), i + 1, ext_index + 1);
+					"partition %d\n"), i + 1, cxt->ext_index + 1);
 		}
 	}
 
