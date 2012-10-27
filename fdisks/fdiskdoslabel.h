@@ -7,7 +7,7 @@ extern struct pte ptes[MAXIMUM_PARTS];
 					      (n) * sizeof(struct partition)))
 
 extern int ext_index; /* the prime extended partition */
-extern sector_t extended_offset, sector_offset;
+extern sector_t sector_offset;
 
 /* A valid partition table sector ends in 0x55 0xaa */
 static inline unsigned int part_table_flag(unsigned char *b)

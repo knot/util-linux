@@ -28,7 +28,6 @@ static struct fdisk_parttype dos_parttypes[] = {
 
 #define alignment_required	(cxt->grain != cxt->sector_size)
 
-sector_t extended_offset;
 int ext_index;
 
 static int get_nonexisting_partition(struct fdisk_context *cxt, int warn, int max)
@@ -117,7 +116,7 @@ void dos_init(struct fdisk_context *cxt)
 	disklabel = DOS_LABEL;
 	partitions = 4;
 	ext_index = 0;
-	extended_offset = 0;
+	cxt->extended_offset = 0;
 
 	for (i = 0; i < 4; i++) {
 		struct pte *pe = &cxt->ptes[i];
@@ -149,7 +148,7 @@ static int dos_delete_partition(
 		if (IS_EXTENDED (p->sys_ind) && partnum == ext_index) {
 			partitions = 4;
 			cxt->ptes[ext_index].ext_pointer = NULL;
-			extended_offset = 0;
+			cxt -> extended_offset = 0;
 		}
 		clear_partition(p);
 	} else if (!q->sys_ind && partnum > 4) {
@@ -174,8 +173,8 @@ static int dos_delete_partition(
 			if (pe->part_table) /* prevent SEGFAULT */
 				set_start_sect(pe->part_table,
 					       get_partition_start(pe) -
-					       extended_offset);
-			pe->offset = extended_offset;
+					       cxt->extended_offset);
+			pe->offset = cxt->extended_offset;
 			pe->changed = 1;
 		}
 
@@ -229,10 +228,10 @@ static void read_extended(struct fdisk_context *cxt, int ext)
 			return;
 		}
 
-		read_pte(cxt, partitions, extended_offset + get_start_sect(p));
+		read_pte(cxt, partitions, cxt->extended_offset + get_start_sect(p));
 
-		if (!extended_offset)
-			extended_offset = get_start_sect(p);
+		if (!cxt->extended_offset)
+			cxt->extended_offset = get_start_sect(p);
 
 		q = p = pt_offset(pe->sectorbuffer, 0);
 		for (i = 0; i < 4; i++, p++) if (get_nr_sects(p)) {
@@ -433,7 +432,7 @@ static void set_partition(struct fdisk_context *cxt,
 
 	if (doext) {
 		p = cxt->ptes[i].ext_pointer;
-		offset = extended_offset;
+		offset = cxt->extended_offset;
 	} else {
 		p = cxt->ptes[i].part_table;
 		offset = cxt->ptes[i].offset;
@@ -516,13 +515,13 @@ static void add_partition(struct fdisk_context *cxt, int n, struct fdisk_parttyp
 		if (limit > UINT_MAX)
 			limit = UINT_MAX;
 
-		if (extended_offset) {
-			first[ext_index] = extended_offset;
+		if (cxt->extended_offset) {
+			first[ext_index] = cxt->extended_offset;
 			last[ext_index] = get_start_sect(q) +
 				get_nr_sects(q) - 1;
 		}
 	} else {
-		start = extended_offset + sector_offset;
+		start = cxt->extended_offset + sector_offset;
 		limit = get_start_sect(q) + get_nr_sects(q) - 1;
 	}
 	if (display_in_cyl_units)
@@ -567,7 +566,7 @@ static void add_partition(struct fdisk_context *cxt, int n, struct fdisk_parttyp
 		struct pte *pe = &cxt->ptes[n];
 
 		pe->offset = start - sector_offset;
-		if (pe->offset == extended_offset) { /* must be corrected */
+		if (pe->offset == cxt->extended_offset) { /* must be corrected */
 			pe->offset++;
 			if (sector_offset == 1)
 				start++;
@@ -628,7 +627,7 @@ static void add_partition(struct fdisk_context *cxt, int n, struct fdisk_parttyp
 
 		ext_index = n;
 		pen->ext_pointer = p;
-		pe4->offset = extended_offset = start;
+		pe4->offset = cxt->extended_offset = start;
 		pe4->sectorbuffer = xcalloc(1, cxt->sector_size);
 		pe4->part_table = pt_offset(pe4->sectorbuffer, 0);
 		pe4->ext_pointer = pe4->part_table + 1;
@@ -687,7 +686,7 @@ static int dos_verify_disklabel(struct fdisk_context *cxt)
 		}
 	}
 
-	if (extended_offset) {
+	if (cxt->extended_offset) {
 		struct pte *pex = &cxt->ptes[ext_index];
 		sector_t e_last = get_start_sect(pex->part_table) +
 			get_nr_sects(pex->part_table) - 1;
@@ -700,7 +699,7 @@ static int dos_verify_disklabel(struct fdisk_context *cxt)
 					printf(_("Warning: partition %d "
 						 "is empty\n"), i + 1);
 			}
-			else if (first[i] < extended_offset ||
+			else if (first[i] < cxt->extended_offset ||
 					last[i] > e_last)
 				printf(_("Logical partition %d not entirely in "
 					"partition %d\n"), i + 1, ext_index + 1);
@@ -739,7 +738,7 @@ static void dos_add_partition(
 	}
 
 	if (!free_primary) {
-		if (extended_offset) {
+		if (cxt->extended_offset) {
 			printf(_("All primary partitions are in use\n"));
 			add_logical(cxt);
 		} else
@@ -752,14 +751,14 @@ static void dos_add_partition(
 	} else {
 		char c, dflt, line[LINE_LENGTH];
 
-		dflt = (free_primary == 1 && !extended_offset) ? 'e' : 'p';
+		dflt = (free_primary == 1 && !cxt->extended_offset) ? 'e' : 'p';
 		snprintf(line, sizeof(line),
 			 _("Partition type:\n"
 			   "   p   primary (%d primary, %d extended, %d free)\n"
 			   "%s\n"
 			   "Select (default %c): "),
-			 4 - (extended_offset ? 1 : 0) - free_primary, extended_offset ? 1 : 0, free_primary,
-			 extended_offset ? _("   l   logical (numbered from 5)") : _("   e   extended"),
+			 4 - (cxt->extended_offset ? 1 : 0) - free_primary, cxt->extended_offset ? 1 : 0, free_primary,
+			 cxt->extended_offset ? _("   l   logical (numbered from 5)") : _("   e   extended"),
 			 dflt);
 
 		c = tolower(read_chars(cxt, line));
@@ -772,10 +771,10 @@ static void dos_add_partition(
 			if (i >= 0)
 				add_partition(cxt, i, t);
 			return;
-		} else if (c == 'l' && extended_offset) {
+		} else if (c == 'l' && cxt->extended_offset) {
 			add_logical(cxt);
 			return;
-		} else if (c == 'e' && !extended_offset) {
+		} else if (c == 'e' && !cxt->extended_offset) {
 			int i = get_nonexisting_partition(cxt, 0, 4);
 			if (i >= 0) {
 				t = fdisk_get_parttype_from_code(cxt, EXTENDED);

@@ -1056,9 +1056,9 @@ fix_chain_of_logicals(struct fdisk_context *cxt) {
 			pjj = cxt->ptes[j+1].part_table;
 			set_start_sect(pjj, get_start_sect(pjj)+ojj-oj);
 			set_start_sect(cxt->ptes[j-1].ext_pointer,
-				       ojj-extended_offset);
+				       ojj - cxt->extended_offset);
 			set_start_sect(cxt->ptes[j].ext_pointer,
-				       oj-extended_offset);
+				       oj - cxt->extended_offset);
 			goto stage1;
 		}
 	}
