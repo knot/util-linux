@@ -121,7 +121,6 @@ struct fdisk_parttype {
 struct pte {
 	struct partition *part_table;	/* points into sectorbuffer */
 	struct partition *ext_pointer;	/* points into sectorbuffer */
-	char changed;			/* boolean */
 	sector_t offset;	        /* disk sector number */
 	unsigned char *sectorbuffer;	/* disk sector contents */
 };
@@ -167,12 +166,14 @@ struct fdisk_context {
 	sector_t total_sectors; /* in logical sectors */
 	struct fdisk_geometry geom;
 
+	/* partition table has changed and needs to be written to disk */
+	int clobbered;
+
 	/* partition table entries */
 	struct pte ptes[MAXIMUM_PARTS];
 	sector_t extended_offset;
 	int ext_index;			/* the prime extended partition */
 	sector_t sector_offset;
-	int MBRbuffer_changed;
 
 	/* label operations and description */
 	const struct fdisk_label *label;
@@ -275,7 +276,6 @@ extern void fill_bounds(struct fdisk_context *cxt, sector_t *first, sector_t *la
 extern char *partition_type(struct fdisk_context *cxt, unsigned char type);
 extern void update_units(struct fdisk_context *cxt);
 extern char read_chars(struct fdisk_context *cxt, char *mesg);
-extern void set_changed(struct fdisk_context *cxt, int);
 extern void set_all_unchanged(struct fdisk_context *cxt);
 extern int warn_geometry(struct fdisk_context *cxt);
 extern void warn_limits(struct fdisk_context *cxt);
@@ -364,4 +364,19 @@ static inline int is_cleared_partition(struct partition *p)
 	return !(!p || p->boot_ind || p->head || p->sector || p->cyl ||
 		 p->sys_ind || p->end_head || p->end_sector || p->end_cyl ||
 		 get_start_sect(p) || get_nr_sects(p));
+}
+
+static inline int fdisk_context_is_clobbered(struct fdisk_context *cxt)
+{
+	return cxt->clobbered;
+}
+
+static inline void fdisk_context_set_clobbered(struct fdisk_context *cxt)
+{
+	cxt->clobbered = 1;
+}
+
+static inline void fdisk_context_unset_clobbered(struct fdisk_context *cxt)
+{
+	cxt->clobbered = 0;
 }

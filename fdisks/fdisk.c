@@ -177,18 +177,6 @@ get_part_table(struct fdisk_context *cxt, int i) {
 	return cxt->ptes[i].part_table;
 }
 
-void
-set_all_unchanged(struct fdisk_context *cxt) {
-	int i;
-
-	for (i = 0; i < MAXIMUM_PARTS; i++)
-		cxt->ptes[i].changed = 0;
-}
-
-void
-set_changed(struct fdisk_context *cxt, int i) {
-	cxt->ptes[i].changed = 1;
-}
 
 static int
 is_garbage_table(struct fdisk_context *cxt) {
@@ -482,16 +470,6 @@ update_sector_offset(struct fdisk_context *cxt)
 	}
 }
 
-static int is_partition_table_changed(struct fdisk_context *cxt)
-{
-	int i;
-
-	for (i = 0; i < partitions; i++)
-		if (cxt->ptes[i].changed)
-			return 1;
-	return 0;
-}
-
 static void maybe_exit(struct fdisk_context *cxt, int rc, int *asked)
 {
 	char line[LINE_LENGTH];
@@ -500,7 +478,7 @@ static void maybe_exit(struct fdisk_context *cxt, int rc, int *asked)
 	if (asked)
 		*asked = 0;
 
-	if (is_partition_table_changed(cxt) || cxt->MBRbuffer_changed) {
+	if (fdisk_context_is_clobbered(cxt)) {
 		fprintf(stderr, _("Do you really want to quit? "));
 
 		if (!fgets(line, LINE_LENGTH, stdin) || rpmatch(line) == 1)
@@ -817,7 +795,7 @@ toggle_active(struct fdisk_context *cxt, int i) {
 			_("WARNING: Partition %d is an extended partition\n"),
 			i + 1);
 	p->boot_ind = (p->boot_ind ? 0 : ACTIVE_FLAG);
-	pe->changed = 1;
+	fdisk_context_set_clobbered(cxt);
 }
 
 void
@@ -838,7 +816,7 @@ static void delete_partition(struct fdisk_context *cxt, int partnum)
 	if (partnum < 0 || warn_geometry(cxt))
 		return;
 
-	cxt->ptes[partnum].changed = 1;
+	fdisk_context_set_clobbered(cxt);
 	if (fdisk_delete_partition(cxt, partnum) != 0)
 		printf(_("Could not delete partition %d\n"), partnum + 1);
 	else
@@ -864,7 +842,7 @@ static void change_partition_type(struct fdisk_context *cxt)
 			continue;
 
 		if (fdisk_set_partition_type(cxt, i, t) == 0) {
-			cxt->ptes[i].changed = 1;
+			fdisk_context_set_clobbered(cxt);
 			printf (_("Changed type of partition '%s' to '%s'\n"),
 				org_t ? org_t->name : _("Unknown"),
 				    t ?     t->name : _("Unknown"));
@@ -1079,9 +1057,7 @@ fix_chain_of_logicals(struct fdisk_context *cxt) {
 		}
 	}
 
-	/* Probably something was changed */
-	for (j = 4; j < partitions; j++)
-		cxt->ptes[j].changed = 1;
+	fdisk_context_set_clobbered(cxt);
 }
 
 static void
@@ -1112,7 +1088,7 @@ fix_partition_table_order(struct fdisk_context *cxt) {
 		memmove(pi, pk, sizeof(struct partition));
 		memmove(pk, &pbuf, sizeof(struct partition));
 
-		pei->changed = pek->changed = 1;
+		fdisk_context_set_clobbered(cxt);
 	}
 
 	if (i)
@@ -1439,7 +1415,7 @@ move_begin(struct fdisk_context *cxt, int i) {
 		unsigned int sects = get_nr_sects(p) + get_start_sect(p) - new;
 		set_nr_sects(p, sects);
 		set_start_sect(p, new);
-		pe->changed = 1;
+		fdisk_context_set_clobbered(cxt);
 	}
 }
 

@@ -68,7 +68,7 @@ static void set_sun_partition(struct fdisk_context *cxt,
 		SSWAP32(start / (cxt->geom.heads * cxt->geom.sectors));
 	sunlabel->partitions[i].num_sectors =
 		SSWAP32(stop - start);
-	set_changed(cxt, i);
+	fdisk_context_set_clobbered(cxt);
 	print_partition_size(cxt, i + 1, start, stop, sysid);
 }
 
@@ -137,7 +137,7 @@ static int sun_probe_label(struct fdisk_context *cxt)
 				csum ^= *ush++;
 			sunlabel->cksum = csum;
 
-			set_changed(cxt, 0);
+			fdisk_context_set_clobbered(cxt);
 		}
 	}
 	update_units(cxt);
@@ -232,8 +232,7 @@ static int sun_create_disklabel(struct fdisk_context *cxt)
 		sunlabel->cksum = csum;
 	}
 
-	set_all_unchanged(cxt);
-	set_changed(cxt, 0);
+	fdisk_context_set_clobbered(cxt);
 
 	return 0;
 }
@@ -244,7 +243,7 @@ void toggle_sunflags(struct fdisk_context *cxt, int i, uint16_t mask)
 
 	p->flag ^= SSWAP16(mask);
 
-	set_changed(cxt, i);
+	fdisk_context_set_clobbered(cxt);
 }
 
 static void fetch_sun(struct fdisk_context *cxt, uint32_t *starts,

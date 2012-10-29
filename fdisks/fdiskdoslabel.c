@@ -66,7 +66,6 @@ static void read_pte(struct fdisk_context *cxt, int pno, sector_t offset)
 	pe->offset = offset;
 	pe->sectorbuffer = xmalloc(cxt->sector_size);
 	read_sector(cxt, offset, pe->sectorbuffer);
-	pe->changed = 0;
 	pe->part_table = pe->ext_pointer = NULL;
 }
 
@@ -123,7 +122,6 @@ void dos_init(struct fdisk_context *cxt)
 		pe->ext_pointer = NULL;
 		pe->offset = 0;
 		pe->sectorbuffer = cxt->firstsector;
-		pe->changed = 0;
 	}
 
 	warn_geometry(cxt);
@@ -154,7 +152,7 @@ static int dos_delete_partition(
 		--partitions;
 		--partnum;
 		clear_partition(cxt->ptes[partnum].ext_pointer);
-		cxt->ptes[partnum].changed = 1;
+		fdisk_context_set_clobbered(cxt);
 	} else {
 		/* not the last one - further ones will be moved down */
 		if (partnum > 4) {
@@ -163,7 +161,7 @@ static int dos_delete_partition(
 			*p = *q;
 			set_start_sect(p, get_start_sect(q));
 			set_nr_sects(p, get_nr_sects(q));
-			cxt->ptes[partnum-1].changed = 1;
+			fdisk_context_set_clobbered(cxt);
 		} else if (partitions > 5) {    /* 5 will be moved to 4 */
 			/* the first logical in a longer chain */
 			struct pte *pe = &cxt->ptes[5];
@@ -173,7 +171,7 @@ static int dos_delete_partition(
 					       get_partition_start(pe) -
 					       cxt->extended_offset);
 			pe->offset = cxt->extended_offset;
-			pe->changed = 1;
+			fdisk_context_set_clobbered(cxt);
 		}
 
 		if (partitions > 5) {
@@ -222,7 +220,7 @@ static void read_extended(struct fdisk_context *cxt, int ext)
 				  "if you save this partition table.\n"),
 				partitions);
 			clear_partition(pre->ext_pointer);
-			pre->changed = 1;
+			fdisk_context_set_clobbered(cxt);
 			return;
 		}
 
@@ -300,8 +298,7 @@ static int dos_create_disklabel(struct fdisk_context *cxt)
 
 	dos_init(cxt);
 	fdisk_zeroize_firstsector(cxt);
-	set_all_unchanged(cxt);
-	set_changed(cxt, 0);
+	fdisk_context_set_clobbered(cxt);
 
 	/* Generate an MBR ID for this disk */
 	mbr_set_id(cxt->firstsector, id);
@@ -328,7 +325,7 @@ void dos_set_mbr_id(struct fdisk_context *cxt)
 		return;
 
 	mbr_set_id(cxt->firstsector, new_id);
-	cxt->MBRbuffer_changed = 1;
+	fdisk_context_set_clobbered(cxt);
 	dos_print_mbr_id(cxt);
 }
 
@@ -399,7 +396,7 @@ static int dos_probe_label(struct fdisk_context *cxt)
 				_("Warning: invalid flag 0x%04x of partition "
 				"table %d will be corrected by w(rite)\n"),
 				part_table_flag(pe->sectorbuffer), i + 1);
-			pe->changed = 1;
+			fdisk_context_set_clobbered(cxt);
 		}
 	}
 
@@ -449,7 +446,7 @@ static void set_partition(struct fdisk_context *cxt,
 	if (cxt->dos_compatible_flag && (stop/(cxt->geom.sectors*cxt->geom.heads) > 1023))
 		stop = cxt->geom.heads*cxt->geom.sectors*1024 - 1;
 	set_hsc(p->end_head, p->end_sector, p->end_cyl, stop);
-	cxt->ptes[i].changed = 1;
+	fdisk_context_set_clobbered(cxt);
 }
 
 static sector_t get_unused_start(struct fdisk_context *cxt,
@@ -629,7 +626,7 @@ static void add_partition(struct fdisk_context *cxt, int n, struct fdisk_parttyp
 		pe4->sectorbuffer = xcalloc(1, cxt->sector_size);
 		pe4->part_table = pt_offset(pe4->sectorbuffer, 0);
 		pe4->ext_pointer = pe4->part_table + 1;
-		pe4->changed = 1;
+		fdisk_context_set_clobbered(cxt);
 		partitions = 5;
 	}
 }
@@ -643,7 +640,7 @@ static void add_logical(struct fdisk_context *cxt)
 		pe->part_table = pt_offset(pe->sectorbuffer, 0);
 		pe->ext_pointer = pe->part_table + 1;
 		pe->offset = 0;
-		pe->changed = 1;
+		fdisk_context_set_clobbered(cxt);
 		partitions++;
 	}
 	printf(_("Adding logical partition %d\n"), partitions);
@@ -797,27 +794,21 @@ static int dos_write_disklabel(struct fdisk_context *cxt)
 {
 	int i, rc = 0;
 
-	/* MBR (primary partitions) */
-	if (!cxt->MBRbuffer_changed) {
-		for (i = 0; i < 4; i++)
-			if (cxt->ptes[i].changed)
-				cxt->MBRbuffer_changed = 1;
-	}
-	if (cxt->MBRbuffer_changed) {
+	if (fdisk_context_is_clobbered(cxt)) {
 		mbr_set_magic(cxt->firstsector);
 		rc = write_sector(cxt, 0, cxt->firstsector);
 		if (rc)
 			goto done;
-	}
-	/* EBR (logical partitions) */
-	for (i = 4; i < partitions; i++) {
-		struct pte *pe = &cxt->ptes[i];
 
-		if (pe->changed) {
+		/* EBR (logical partitions) */
+		for (i = 4; i < partitions; i++) {
+			struct pte *pe = &cxt->ptes[i];
+
 			mbr_set_magic(pe->sectorbuffer);
 			rc = write_sector(cxt, pe->offset, pe->sectorbuffer);
 			if (rc)
 				goto done;
+			
 		}
 	}
 

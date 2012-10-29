@@ -595,7 +595,7 @@ static int sgi_set_partition(struct fdisk_context *cxt, int i,
 	sgilabel->partitions[i].id = SSWAP32(sys);
 	sgilabel->partitions[i].num_sectors = SSWAP32(length);
 	sgilabel->partitions[i].start_sector = SSWAP32(start);
-	set_changed(cxt, i);
+	fdisk_context_set_clobbered(cxt);
 
 	if (sgi_gaps(cxt) < 0)	/* rebuild freelist */
 		printf(_("Partition overlap on the disk.\n"));
