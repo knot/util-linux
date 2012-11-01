@@ -604,6 +604,7 @@ void sun_set_pcylcount(struct fdisk_context *cxt)
 
 static int sun_write_disklabel(struct fdisk_context *cxt)
 {
+	//XXX: respect clobber flag (will likely cause errors)
 	unsigned short *ush = (unsigned short *)sunlabel;
 	unsigned short csum = 0;
 
